@@ -4,9 +4,13 @@ const phases = ['Arranque','Fábrica de fábrica','Vermelha + verde','Azul e pet
 // Official item icons from the Factorio wiki (© Wube Software)
 const icons = {"L01":"Radar","L02":"Steam_engine","L03":"Electric_mining_drill","L04":"Stone_furnace","L05":"Coal","L06":"Steel_plate","L07":"Assembling_machine_1","L08":"Iron_chest","L09":"Iron_chest","L10":"Splitter","L11":"Assembling_machine_2","L12":"Electric_mining_drill","L13":"Solar_panel","L14":"Gun_turret","L15":"Rocket_silo","L16":"Space_platform_foundation","P00":"Iron_chest","P01":"Automation_science_pack","P02":"Transport_belt","P03":"Electronic_circuit","P04":"Logistic_science_pack","P05":"Iron_chest","P06":"Lab","P07":"Advanced_circuit","P08":"Chemical_science_pack","P09":"Lab","P10":"Processing_unit","P11":"Lab","P12":"Rocket_silo","P13":"Lab","P14":"Space_platform_starter_pack","P15":"Space_science_pack","P16":"Nauvis","G01":"Boiler","G02":"Engine_unit","G03":"Pumpjack","G04":"Petroleum_gas","G05":"Plastic_bar","G06":"Sulfur","G07":"Sulfuric_acid","G08":"Electric_engine_unit","G09":"Concrete","G10":"Low_density_structure","G11":"Rocket_fuel","G12":"Rocket_silo","G13":"Rocket_part","G14":"Space_platform_starter_pack","G15":"Space_platform_hub","G16":"Asteroid_collector","G17":"Space_science_pack","G18":"Thruster","M01":"Transport_belt","M02":"Underground_belt","M03":"Splitter","M04":"Inserter","M05":"Long-handed_inserter","M06":"Fast_inserter","M07":"Assembling_machine_1","M08":"Small_electric_pole","M09":"Medium_electric_pole","M10":"Electric_mining_drill","M11":"Pipe","M12":"Pipe_to_ground"};
 const icon = id => icons[id] ? `<img class="icon" src="https://wiki.factorio.com/images/${icons[id]}.png" alt="" loading="lazy" width="32" height="32">` : "";
+// Reassignments over the Supabase rows (DB only stores done state via RPC).
+const owner = {P01:"Paulo",L03:"Paulo",P02:"Lucas",P00:"Lucas",L07:"Lucas",L08:"Lucas",L09:"Lucas",P03:"Paulo",P04:"Paulo",P06:"Paulo",L11:"Lucas",P05:"Lucas",P08:"Paulo",P09:"Paulo",P11:"Paulo",P12:"Paulo",L15:"Lucas",P13:"Paulo",L16:"Lucas",P15:"Paulo"};
+const details = {L04:"Organize fornalhas e insertores. Receba minério e carvão das minas de Paulo.",P02:"Primeira célula do mall: esteiras amarelas, insertores e postes em baús limitados, longe das linhas de ciência.",P00:"Baús lado a lado com poucos slots: esteiras, insertores, postes, mineradoras. Todo mundo pega aqui."};
+const fix = t => Object.assign(t, {player: owner[t.id] || t.player, detail: (details[t.id] || t.detail).replace(/^(Lucas|Paulo|Gabriel)( coordena)?: /, "")});
 const people = [
-  {name:'Lucas',nick:'Lucaslbc',color:'var(--green)',role:'Energia, recursos e mall'},
-  {name:'Paulo',nick:'Ragnax',color:'var(--red)',role:'Suporte, carvão e mall · tarefas mais simples'},
+  {name:'Lucas',nick:'Lucaslbc',color:'var(--green)',role:'Fábrica de fábrica, aço e circuitos azuis'},
+  {name:'Paulo',nick:'Ragnax',color:'var(--red)',role:'Mineração, ciência e pesquisa'},
   {name:'Gabriel',nick:'gabrielabc',color:'var(--yellow)',role:'Petróleo, foguete e espaço'}
 ];
 let tasks = [], phase = 1, busy = false, loading = false, loaded = false, generation = 0;
@@ -59,7 +63,7 @@ async function refresh() {
     const rows = await request('factorio_tasks?select=*&order=sort_order.asc');
     if (!Array.isArray(rows) || !rows.length) throw new Error('Nenhuma tarefa disponível');
     if (currentGeneration !== generation) return;
-    tasks = rows; loaded = true;
+    tasks = rows.map(fix); loaded = true;
     if (!document.querySelector('[data-phase]')) phase = tasks.find(t=>!isMall(t)&&!t.done)?.phase || 1;
     render();
     status(dirty.size ? `${dirty.size} alteração(ões) aguardando salvar` : 'Progresso atualizado na nuvem');
@@ -75,7 +79,7 @@ async function save() {
   try {
     const saved=await request('rpc/save_factorio_tasks',{method:'POST',body:JSON.stringify({changes})});
     if (!Array.isArray(saved) || saved.length!==changes.length) throw new Error('Gravação incompleta');
-    for (const row of saved) { const task=tasks.find(t=>t.id===row.id); if(task) Object.assign(task,row); dirty.delete(row.id); }
+    for (const row of saved) { const task=tasks.find(t=>t.id===row.id); if(task) fix(Object.assign(task,row)); dirty.delete(row.id); }
     render(); status('Salvo! A equipe já pode ver as marcações.');
   } catch(e) { status('Não foi possível salvar. As marcações estão aqui; tente novamente.',true); }
   finally { busy=false; controls(); }
@@ -96,3 +100,5 @@ window.addEventListener('beforeunload',e=>{if(dirty.size){e.preventDefault();e.r
 setInterval(()=>{if(!document.hidden)refresh();},12000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
 refresh();
+
+document.querySelector(".tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(!b)return;document.querySelectorAll(".tabs [data-tab]").forEach(x=>{const on=x===b;x.setAttribute("aria-selected",on);document.getElementById("tab-"+x.dataset.tab).hidden=!on;});});
